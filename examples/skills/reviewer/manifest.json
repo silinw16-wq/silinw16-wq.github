@@ -1,0 +1,7 @@
+{
+  "id": "reviewer",
+  "name": "审阅助手",
+  "description": "审查文本，输出问题及改进建议。",
+  "type": "markdown",
+  "enabled": true
+}

@@ -1,0 +1,20 @@
+.env
+.env.*
+!.env.example
+/skills/
+__pycache__/
+*.py[cod]
+.venv/
+# Local private material (only examples/skills contains publishable demo skills).
+private/
+private-skills/
+private_skills/
+secrets/
+credentials/
+*.pem
+*.key
+*.p12
+*.pfx
+*.log
+*.sqlite*
+.DS_Store

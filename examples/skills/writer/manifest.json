@@ -1,0 +1,7 @@
+{
+  "id": "writer",
+  "name": "写作助手",
+  "description": "根据输入写作，结合反馈修改文本。",
+  "type": "markdown",
+  "enabled": true
+}
