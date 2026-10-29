@@ -87,3 +87,33 @@ python3 -m unittest discover -s tests -v
 ```
 
 测试覆盖两种 Skill、添加第三种、停用重启、鉴权、输入上限、无效清单/链接/重复 ID、模拟模型切换及修订、超时、上游异常、日志脱敏、指令原文回显拦截。未运行真实模型测试。手工检查 `/health` 与带认证的 `/v1/skills` 后，只有在确认供应商及费用后才请求 `/v1/execute`。不需要部署 GitHub Pages。
+
+## 工作包②：MCP 与 Token 授权
+
+新增 `skill_bowl/mcp_app.py`，复用已有 REST 应用的 Skill 加载、执行、校验及上游调用，不修改工作包①核心代码。新增依赖官方 `mcp==1.29.0`；安装命令仍为 `python3 -m pip install -r requirements.txt`。
+
+MCP 使用独立进程入口（不会将原有 REST API 自动暴露到 MCP 端口）：
+
+```sh
+# 保留前述 SKILL_BOWL_SKILLS_DIR、REST Token 和可选模型配置。
+export SKILL_BOWL_MCP_RUN_TOKEN="$(python3 -c 'import secrets; print(secrets.token_urlsafe(32))')"
+export SKILL_BOWL_MCP_READ_TOKEN="$(python3 -c 'import secrets; print(secrets.token_urlsafe(32))')"
+python3 -m uvicorn skill_bowl.mcp_app:create_app --factory --host 127.0.0.1 --port 8002 --no-access-log
+```
+
+端点路径 `/mcp`，传输为 stateless Streamable HTTP，使用 JSON responses；不是旧版 HTTP+SSE。客户端每次请求均须发送 `Authorization: Bearer <MCP Token>`。RUN 必填，READ 可省略；Token 至少 24 字符且必须互不相同，也不得复用 REST Token。不要把 Token 放 URL 中。
+
+| 工具 | 参数 | 权限 |
+| --- | --- | --- |
+| `list_skills` | 无 | READ 或 RUN |
+| `run_skill` | `skill_id`、`input`；可选 `feedback`、`previous_result` | RUN |
+
+工具返回公开 Skill 信息或执行结果；不注册私有资源、提示词模板、文件下载或密钥读取工具。无权请求返回 HTTP 401；工具权限、参数或业务错误返回 MCP `isError=true` 和通用脱敏消息。读取 Token 不能触发模型，REST Token 不能访问 MCP；不是多租户隔离。
+
+沿用工作包①字段限制及模型超时；MCP 请求体上限 64 KiB，请求总时限为模型配置超时加 5 秒。日志只保留随机请求 ID、HTTP 状态及通用事件，SDK 协议日志也作脱敏。SDK 版本固定，升级后需复查日志行为。部分错误（如只读 Token 调用执行工具）使用 MCP 工具错误，HTTP 仍可能为 200，应检查 `isError`。
+
+默认启用 Host/Origin 校验，仅允许本机 Host；远程部署需设置 `SKILL_BOWL_MCP_ALLOWED_HOSTS` 为明确的可信主机及端口，浏览器场景还需明确设置 `SKILL_BOWL_MCP_ALLOWED_ORIGINS`（逗号分隔，默认不允许带 Origin 的请求）。保留 HTTPS 反向代理、请求读取超时和限流要求。该版本不提供 OAuth、用户管理、Token 管理后台或公开部署。
+
+[WorkBuddy 兼容性与来源记录](docs/workbuddy-compatibility.md)：官方资料入口访问被网络策略拒绝，WorkBuddy 的传输协议和认证字段仍待核实。当前只确认本服务与所用官方 Python SDK 协议互通，未开发或测试 WorkBuddy 实际远程连接。
+
+运行 `python3 -m unittest discover -s tests -v` 将同时运行原业务单元测试和 `tests/test_mcp.py` 中的真实本地 HTTP MCP 协议测试（需要本地监听端口权限，端口自动选择并在结束时关闭）。上游模型全部模拟，不会访问供应商。测试输出可能包含已安装依赖的弃用/类型注解警告，不影响本轮执行结果。
