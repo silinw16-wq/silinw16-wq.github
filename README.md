@@ -117,3 +117,11 @@ python3 -m uvicorn skill_bowl.mcp_app:create_app --factory --host 127.0.0.1 --po
 [WorkBuddy 兼容性与来源记录](docs/workbuddy-compatibility.md)：官方资料入口访问被网络策略拒绝，WorkBuddy 的传输协议和认证字段仍待核实。当前只确认本服务与所用官方 Python SDK 协议互通，未开发或测试 WorkBuddy 实际远程连接。
 
 运行 `python3 -m unittest discover -s tests -v` 将同时运行原业务单元测试和 `tests/test_mcp.py` 中的真实本地 HTTP MCP 协议测试（需要本地监听端口权限，端口自动选择并在结束时关闭）。上游模型全部模拟，不会访问供应商。测试输出可能包含已安装依赖的弃用/类型注解警告，不影响本轮执行结果。
+
+## 工作包③：Windows / Cursor 本地准备
+
+在 Windows 项目根目录执行 ` .\scripts\start-skill-bowl.ps1`（或 `py -3 .\scripts\start_local.py`），自动创建虚拟环境、准备私有本地 Skill 和 Token，生成被 Git 忽略的 `.cursor/mcp.json` 并启动回环地址 MCP 服务。不会调用模型。
+
+[最短连接步骤、模型配置及验收清单](docs/cursor-local-acceptance.md)。Cursor 官方文档本轮访问被网络策略拒绝，生成的配置是待本机核实方案；Windows 启动、Cursor UI 和真实模型端到端测试均未执行，不宣称工作包③完整验收通过。用户选择稍后在本地验证。
+
+`python -m skill_bowl.check_mcp` 默认只做本地协议、Token 和列表检查，不触发模型。真实执行模式必须显式确认，详见上述文档。新增输出保护会拒绝 MCP 响应中已知 Token、模型密钥或已加载 Skill 完整原文的直接回显；它无法保证防止所有改写和编码形式的提示词泄露。

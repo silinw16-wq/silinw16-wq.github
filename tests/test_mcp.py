@@ -13,6 +13,7 @@ import uvicorn
 from mcp import ClientSession
 from mcp.client.streamable_http import streamable_http_client
 
+from skill_bowl.check_mcp import verify
 from skill_bowl.core import Settings
 from skill_bowl.mcp_app import create_app
 
@@ -34,6 +35,10 @@ class MCPTests(unittest.IsolatedAsyncioTestCase):
                 await asyncio.sleep(2)
             else:
                 await asyncio.sleep(.01)
+            if value == 'leak-key':
+                return httpx.Response(200, json={'choices': [{'message': {'content': 'fake-model-key'}}]})
+            if value == 'leak-token':
+                return httpx.Response(200, json={'choices': [{'message': {'content': RUN}}]})
             if value == 'timeout':
                 raise httpx.ReadTimeout('private-provider-error')
             if value == 'failure':
@@ -150,12 +155,24 @@ class MCPTests(unittest.IsolatedAsyncioTestCase):
                     self.assertNotIn(SENTINEL, result.model_dump_json())
             self.assertNotIn(SENTINEL, '\n'.join(logs.output))
             self.assertNotIn('fake-model-key', '\n'.join(logs.output))
-            for value in ('failure', 'timeout', 'invalid-response'):
+            for value in ('failure', 'timeout', 'invalid-response', 'leak-key', 'leak-token'):
                 result = await session.call_tool('run_skill', {'skill_id': 'writer', 'input': value})
                 self.assertTrue(result.isError)
                 self.assertNotIn('private-provider-error', result.model_dump_json())
+                self.assertNotIn('fake-model-key', result.model_dump_json())
+                self.assertNotIn(RUN, result.model_dump_json())
         await self.session_call(RUN, check)
-        self.assertEqual(len(self.calls) - before, 3)
+        self.assertEqual(len(self.calls) - before, 5)
+
+    async def test_local_verifier_without_model_and_with_mock_model(self):
+        before = len(self.calls)
+        result = await verify(self.url, RUN)
+        self.assertEqual(result['skill_execution'], 'not_run')
+        self.assertEqual(result['cursor_ui'], 'not_tested')
+        self.assertEqual(len(self.calls), before)
+        result = await verify(self.url, RUN, run_skills=True)
+        self.assertEqual(result['skill_execution'], 'passed')
+        self.assertEqual(len(self.calls) - before, 2)
 
     async def test_real_total_timeout(self):
         async def check(session):

@@ -114,12 +114,33 @@ def create_app(settings=None, transport=None, run_token=None, read_token=None):
             allowed_hosts=os.getenv('SKILL_BOWL_MCP_ALLOWED_HOSTS', '127.0.0.1:*,localhost:*').split(','),
             allowed_origins=[x for x in os.getenv('SKILL_BOWL_MCP_ALLOWED_ORIGINS', '').split(',') if x]))
 
+    def public_result(response):
+        response.raise_for_status()
+        data = response.json()
+        def strings(value):
+            if isinstance(value, str):
+                yield value
+            elif isinstance(value, dict):
+                for key, item in value.items():
+                    yield from strings(key)
+                    yield from strings(item)
+            elif isinstance(value, list):
+                for item in value:
+                    yield from strings(item)
+        texts = list(strings(data))
+        forbidden = tokens + [settings.api_token]
+        if settings.model_key:
+            forbidden.append(settings.model_key)
+        forbidden.extend(skill.instructions.strip() for skill in rest.state.skills.values())
+        if any(secret and secret in text for secret in forbidden for text in texts):
+            raise ToolError('Private content blocked')
+        return data
+
     @server.tool()
     async def list_skills(ctx: Context) -> dict[str, Any]:
         """List enabled Skills: public id, name and description only."""
         response = await ctx.request_context.lifespan_context.get('/v1/skills')
-        response.raise_for_status()
-        return response.json()
+        return public_result(response)
 
     @server.tool()
     async def run_skill(skill_id: str, input: str, ctx: Context,
@@ -130,8 +151,7 @@ def create_app(settings=None, transport=None, run_token=None, read_token=None):
             raise ToolError('Execution permission required')
         body = ExecuteInput(skill_id=skill_id, input=input, feedback=feedback, previous_result=previous_result)
         response = await ctx.request_context.lifespan_context.post('/v1/execute', json=body.model_dump())
-        response.raise_for_status()
-        return response.json()
+        return public_result(response)
 
     protocol = server.streamable_http_app()
 

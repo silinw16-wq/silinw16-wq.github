@@ -18,3 +18,6 @@ credentials/
 *.log
 *.sqlite*
 .DS_Store
+# Cursor runtime configuration contains a real local MCP access token.
+/.cursor/mcp.json
+/.cursor/.skill-bowl-*

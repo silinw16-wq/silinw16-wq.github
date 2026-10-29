@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "skill-bowl": {
+      "url": "http://127.0.0.1:8002/mcp",
+      "headers": {
+        "Authorization": "Bearer REPLACE_WITH_LOCAL_MCP_RUN_TOKEN"
+      }
+    }
+  }
+}
